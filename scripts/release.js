@@ -16,8 +16,7 @@ const skipBuild = args.skipBuild
 const packages = fs
   .readdirSync(path.resolve(__dirname, '../packages'))
   .filter(p => !p.endsWith('.ts') && !p.startsWith('.'))
-
-const skippedPackages = []
+  .concat('vue')
 
 const versionIncrements = [
   'patch',
@@ -27,13 +26,11 @@ const versionIncrements = [
 ]
 
 const inc = i => semver.inc(currentVersion, i, preId)
-const bin = name => path.resolve(__dirname, '../node_modules/.bin/' + name)
 const run = (bin, args, opts = {}) =>
   execa(bin, args, { stdio: 'inherit', ...opts })
 const dryRun = (bin, args, opts = {}) =>
   console.log(chalk.blue(`[dryrun] ${bin} ${args.join(' ')}`), opts)
 const runIfNotDry = isDryRun ? dryRun : run
-const getPkgRoot = pkg => path.resolve(__dirname, '../packages/' + pkg)
 const step = msg => console.log(chalk.cyan(msg))
 
 async function main() {
@@ -79,23 +76,22 @@ async function main() {
   // run tests before release
   step('\nRunning tests...')
   if (!skipTests && !isDryRun) {
-    await run(bin('jest'), ['--clearCache'])
-    await run('pnpm', ['test', '--bail'])
+    await run('pnpm', ['test'])
   } else {
     console.log(`(skipped)`)
   }
 
   // update all package versions and inter-dependencies
-  step('\nUpdating cross dependencies...')
-  updateVersions(targetVersion)
+  step('\nUpdating package versions...')
+  packages.forEach(p => updatePackage(getPkgRoot(p), targetVersion))
 
   // build all packages with types
   step('\nBuilding all packages...')
   if (!skipBuild && !isDryRun) {
-    await run('pnpm', ['run', 'build', '--release'])
-    // test generated dts files
-    step('\nVerifying type declarations...')
-    await run('pnpm', ['run', 'test-dts-only'])
+    await run('pnpm', ['run', 'build'])
+    if (skipTests) {
+      await run('pnpm', ['run', 'build:types'])
+    }
   } else {
     console.log(`(skipped)`)
   }
@@ -132,58 +128,26 @@ async function main() {
   if (isDryRun) {
     console.log(`\nDry run finished - run git diff to see package changes.`)
   }
-
-  if (skippedPackages.length) {
-    console.log(
-      chalk.yellow(
-        `The following packages are skipped and NOT published:\n- ${skippedPackages.join(
-          '\n- '
-        )}`
-      )
-    )
-  }
   console.log()
-}
-
-function updateVersions(version) {
-  // 1. update root package.json
-  updatePackage(path.resolve(__dirname, '..'), version)
-  // 2. update all packages
-  packages.forEach(p => updatePackage(getPkgRoot(p), version))
 }
 
 function updatePackage(pkgRoot, version) {
   const pkgPath = path.resolve(pkgRoot, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'))
   pkg.version = version
-  updateDeps(pkg, 'dependencies', version)
-  updateDeps(pkg, 'peerDependencies', version)
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
 }
 
-function updateDeps(pkg, depType, version) {
-  const deps = pkg[depType]
-  if (!deps) return
-  Object.keys(deps).forEach(dep => {
-    if (
-      dep === 'vue' ||
-      (dep.startsWith('@vue') && packages.includes(dep.replace(/^@vue\//, '')))
-    ) {
-      console.log(
-        chalk.yellow(`${pkg.name} -> ${depType} -> ${dep}@${version}`)
-      )
-      deps[dep] = version
-    }
-  })
-}
+const getPkgRoot = pkg =>
+  pkg === 'vue'
+    ? path.resolve(__dirname, '../')
+    : path.resolve(__dirname, '../packages/' + pkg)
 
 async function publishPackage(pkgName, version, runIfNotDry) {
-  if (skippedPackages.includes(pkgName)) {
-    return
-  }
   const pkgRoot = getPkgRoot(pkgName)
   const pkgPath = path.resolve(pkgRoot, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'))
+  const publishedName = pkg.name
   if (pkg.private) {
     return
   }
@@ -199,16 +163,21 @@ async function publishPackage(pkgName, version, runIfNotDry) {
     releaseTag = 'rc'
   }
 
-  step(`Publishing ${pkgName}...`)
+  // avoid overwriting tags for v3
+  if (pkgName === 'vue' || pkgName === 'compiler-sfc') {
+    if (releaseTag) {
+      releaseTag = `v2-${releaseTag}`
+    } else {
+      releaseTag = 'v2-latest'
+    }
+  }
+
+  step(`Publishing ${publishedName}...`)
   try {
     await runIfNotDry(
-      // note: use of yarn is intentional here as we rely on its publishing
-      // behavior.
-      'yarn',
+      'pnpm',
       [
         'publish',
-        '--new-version',
-        version,
         ...(releaseTag ? ['--tag', releaseTag] : []),
         '--access',
         'public'
@@ -218,17 +187,16 @@ async function publishPackage(pkgName, version, runIfNotDry) {
         stdio: 'pipe'
       }
     )
-    console.log(chalk.green(`Successfully published ${pkgName}@${version}`))
+    console.log(
+      chalk.green(`Successfully published ${publishedName}@${version}`)
+    )
   } catch (e) {
     if (e.stderr.match(/previously published/)) {
-      console.log(chalk.red(`Skipping already published: ${pkgName}`))
+      console.log(chalk.red(`Skipping already published: ${publishedName}`))
     } else {
       throw e
     }
   }
 }
 
-main().catch(err => {
-  updateVersions(currentVersion)
-  console.error(err)
-})
+main()

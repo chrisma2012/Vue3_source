@@ -1,191 +1,97 @@
-/*
-Produces production builds and stitches together d.ts files.
-
-To specify the package to build, simply pass its name and the desired build
-formats to output (defaults to `buildOptions.formats` specified in that package,
-or "esm,cjs"):
-
-```
-# name supports fuzzy match. will build all packages with name containing "dom":
-nr build dom
-
-# specify the format to output
-nr build core --formats cjs
-```
-*/
-
-const fs = require('fs-extra')
+const fs = require('fs')
 const path = require('path')
-const chalk = require('chalk')
-const execa = require('execa')
-const { gzipSync } = require('zlib')
-const { compress } = require('brotli')
-const { targets: allTargets, fuzzyMatchTarget } = require('./utils')
+const zlib = require('zlib')
+const rollup = require('rollup')
+const terser = require('terser')
 
-const args = require('minimist')(process.argv.slice(2))
-const targets = args._
-const formats = args.formats || args.f
-const devOnly = args.devOnly || args.d
-const prodOnly = !devOnly && (args.prodOnly || args.p)
-const sourceMap = args.sourcemap || args.s
-const isRelease = args.release
-const buildTypes = args.t || args.types || isRelease
-const buildAllMatching = args.all || args.a
-const commit = execa.sync('git', ['rev-parse', 'HEAD']).stdout.slice(0, 7)
-
-run()
-
-async function run() {
-  if (isRelease) {
-    // remove build cache for release builds to avoid outdated enum values
-    await fs.remove(path.resolve(__dirname, '../node_modules/.rts2_cache'))
-  }
-  if (!targets.length) {
-    await buildAll(allTargets)
-    checkAllSizes(allTargets)
-  } else {
-    await buildAll(fuzzyMatchTarget(targets, buildAllMatching))
-    checkAllSizes(fuzzyMatchTarget(targets, buildAllMatching))
-  }
+if (!fs.existsSync('dist')) {
+  fs.mkdirSync('dist')
 }
 
-async function buildAll(targets) {
-  await runParallel(require('os').cpus().length, targets, build)
+let builds = require('./config').getAllBuilds()
+
+// filter builds via command line arg
+if (process.argv[2]) {
+  const filters = process.argv[2].split(',')
+  builds = builds.filter(b => {
+    return filters.some(f => b.output.file.indexOf(f) > -1 || b._name.indexOf(f) > -1)
+  })
 }
 
-async function runParallel(maxConcurrency, source, iteratorFn) {
-  const ret = []
-  const executing = []
-  for (const item of source) {
-    const p = Promise.resolve().then(() => iteratorFn(item, source))
-    ret.push(p)
+build(builds)
 
-    if (maxConcurrency <= source.length) {
-      const e = p.then(() => executing.splice(executing.indexOf(e), 1))
-      executing.push(e)
-      if (executing.length >= maxConcurrency) {
-        await Promise.race(executing)
+function build (builds) {
+  let built = 0
+  const total = builds.length
+  const next = () => {
+    buildEntry(builds[built]).then(() => {
+      built++
+      if (built < total) {
+        next()
       }
-    }
+    }).catch(logError)
   }
-  return Promise.all(ret)
+
+  next()
 }
 
-async function build(target) {
-  const pkgDir = path.resolve(`packages/${target}`)
-  const pkg = require(`${pkgDir}/package.json`)
-
-  // if this is a full build (no specific targets), ignore private packages
-  if ((isRelease || !targets.length) && pkg.private) {
-    return
-  }
-
-  // if building a specific format, do not remove dist.
-  if (!formats) {
-    await fs.remove(`${pkgDir}/dist`)
-  }
-
-  const env =
-    (pkg.buildOptions && pkg.buildOptions.env) ||
-    (devOnly ? 'development' : 'production')
-  await execa(
-    'rollup',
-    [
-      '-c',
-      '--environment',
-      [
-        `COMMIT:${commit}`,
-        `NODE_ENV:${env}`,
-        `TARGET:${target}`,
-        formats ? `FORMATS:${formats}` : ``,
-        buildTypes ? `TYPES:true` : ``,
-        prodOnly ? `PROD_ONLY:true` : ``,
-        sourceMap ? `SOURCE_MAP:true` : ``
-      ]
-        .filter(Boolean)
-        .join(',')
-    ],
-    { stdio: 'inherit' }
-  )
-
-  if (buildTypes && pkg.types) {
-    console.log()
-    console.log(
-      chalk.bold(chalk.yellow(`Rolling up type definitions for ${target}...`))
-    )
-
-    // build types
-    const { Extractor, ExtractorConfig } = require('@microsoft/api-extractor')
-
-    const extractorConfigPath = path.resolve(pkgDir, `api-extractor.json`)
-    const extractorConfig =
-      ExtractorConfig.loadFileAndPrepare(extractorConfigPath)
-    const extractorResult = Extractor.invoke(extractorConfig, {
-      localBuild: true,
-      showVerboseMessages: true
+function buildEntry (config) {
+  const output = config.output
+  const { file, banner } = output
+  const isProd = /(min|prod)\.js$/.test(file)
+  return rollup.rollup(config)
+    .then(bundle => bundle.generate(output))
+    .then(async ({ output: [{ code }] }) => {
+      if (isProd) {
+        const {code: minifiedCode} =  await terser.minify(code, {
+          toplevel: true,
+          compress: {
+            pure_funcs: ['makeMap'],
+          },
+          format: {
+            ascii_only: true,
+          }
+        });
+        const minified = (banner ? banner + '\n' : '') + minifiedCode
+        return write(file, minified, true)
+      } else {
+        return write(file, code)
+      }
     })
+}
 
-    if (extractorResult.succeeded) {
-      // concat additional d.ts to rolled-up dts
-      const typesDir = path.resolve(pkgDir, 'types')
-      if (await fs.exists(typesDir)) {
-        const dtsPath = path.resolve(pkgDir, pkg.types)
-        const existing = await fs.readFile(dtsPath, 'utf-8')
-        const typeFiles = await fs.readdir(typesDir)
-        const toAdd = await Promise.all(
-          typeFiles.map(file => {
-            return fs.readFile(path.resolve(typesDir, file), 'utf-8')
-          })
-        )
-        await fs.writeFile(dtsPath, existing + '\n' + toAdd.join('\n'))
-      }
-      console.log(
-        chalk.bold(chalk.green(`API Extractor completed successfully.`))
-      )
-    } else {
-      console.error(
-        `API Extractor completed with ${extractorResult.errorCount} errors` +
-          ` and ${extractorResult.warningCount} warnings`
-      )
-      process.exitCode = 1
+function write (dest, code, zip) {
+  return new Promise((resolve, reject) => {
+    function report (extra) {
+      console.log(blue(path.relative(process.cwd(), dest)) + ' ' + getSize(code) + (extra || ''))
+      resolve()
     }
 
-    await fs.remove(`${pkgDir}/dist/packages`)
-  }
+    if (!fs.existsSync(path.dirname(dest))) {
+      fs.mkdirSync(path.dirname(dest), { recursive: true })
+    }
+    fs.writeFile(dest, code, err => {
+      if (err) return reject(err)
+      if (zip) {
+        zlib.gzip(code, (err, zipped) => {
+          if (err) return reject(err)
+          report(' (gzipped: ' + getSize(zipped) + ')')
+        })
+      } else {
+        report()
+      }
+    })
+  })
 }
 
-function checkAllSizes(targets) {
-  if (devOnly || (formats && !formats.includes('global'))) {
-    return
-  }
-  console.log()
-  for (const target of targets) {
-    checkSize(target)
-  }
-  console.log()
+function getSize (code) {
+  return (code.length / 1024).toFixed(2) + 'kb'
 }
 
-function checkSize(target) {
-  const pkgDir = path.resolve(`packages/${target}`)
-  checkFileSize(`${pkgDir}/dist/${target}.global.prod.js`)
-  if (!formats || formats.includes('global-runtime')) {
-    checkFileSize(`${pkgDir}/dist/${target}.runtime.global.prod.js`)
-  }
+function logError (e) {
+  console.log(e)
 }
 
-function checkFileSize(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return
-  }
-  const file = fs.readFileSync(filePath)
-  const minSize = (file.length / 1024).toFixed(2) + 'kb'
-  const gzipped = gzipSync(file)
-  const gzippedSize = (gzipped.length / 1024).toFixed(2) + 'kb'
-  const compressed = compress(file)
-  const compressedSize = (compressed.length / 1024).toFixed(2) + 'kb'
-  console.log(
-    `${chalk.gray(
-      chalk.bold(path.basename(filePath))
-    )} min:${minSize} / gzip:${gzippedSize} / brotli:${compressedSize}`
-  )
+function blue (str) {
+  return '\x1b[1m\x1b[34m' + str + '\x1b[39m\x1b[22m'
 }

@@ -1,42 +1,30 @@
-import { initDirectivesForSSR } from 'vue'
-initDirectivesForSSR()
+process.env.VUE_ENV = 'server'
 
-// public
-export { SSRContext } from './render'
-export { renderToString } from './renderToString'
-export {
-  renderToSimpleStream,
-  renderToNodeStream,
-  pipeToNodeWritable,
-  renderToWebStream,
-  pipeToWebWritable,
-  SimpleReadable,
-  // deprecated
-  renderToStream
-} from './renderToStream'
+import { extend } from 'shared/util'
+import modules from './modules/index'
+import baseDirectives from './directives/index'
+import { isUnaryTag, canBeLeftOpenTag } from 'web/compiler/util'
 
-// internal runtime helpers
-export { renderVNode as ssrRenderVNode } from './render'
-export { ssrRenderComponent } from './helpers/ssrRenderComponent'
-export { ssrRenderSlot, ssrRenderSlotInner } from './helpers/ssrRenderSlot'
-export { ssrRenderTeleport } from './helpers/ssrRenderTeleport'
-export {
-  ssrRenderClass,
-  ssrRenderStyle,
-  ssrRenderAttrs,
-  ssrRenderAttr,
-  ssrRenderDynamicAttr
-} from './helpers/ssrRenderAttrs'
-export { ssrInterpolate } from './helpers/ssrInterpolate'
-export { ssrRenderList } from './helpers/ssrRenderList'
-export { ssrRenderSuspense } from './helpers/ssrRenderSuspense'
-export { ssrGetDirectiveProps } from './helpers/ssrGetDirectiveProps'
-export { includeBooleanAttr as ssrIncludeBooleanAttr } from '@vue/shared'
+import {
+  createRenderer as _createRenderer,
+  Renderer,
+  RenderOptions
+} from 'server/create-renderer'
+import { createBundleRendererCreator } from 'server/bundle-renderer/create-bundle-renderer'
 
-// v-model helpers
-export {
-  ssrLooseEqual,
-  ssrLooseContain,
-  ssrRenderDynamicModel,
-  ssrGetDynamicModelProps
-} from './helpers/ssrVModelHelpers'
+export function createRenderer(
+  options: RenderOptions | undefined = {}
+): Renderer {
+  return _createRenderer(
+    extend(extend({}, options), {
+      isUnaryTag,
+      canBeLeftOpenTag,
+      modules,
+      // user can provide server-side implementations for custom directives
+      // when creating the renderer.
+      directives: extend(baseDirectives, options.directives)
+    })
+  )
+}
+
+export const createBundleRenderer = createBundleRendererCreator(createRenderer)

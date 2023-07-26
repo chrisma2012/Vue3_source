@@ -3,53 +3,29 @@ export { parse } from './parse'
 export { compileTemplate } from './compileTemplate'
 export { compileStyle, compileStyleAsync } from './compileStyle'
 export { compileScript } from './compileScript'
+export { generateCodeFrame } from 'compiler/codeframe'
 export { rewriteDefault } from './rewriteDefault'
-export {
-  shouldTransform as shouldTransformRef,
-  transform as transformRef,
-  transformAST as transformRefAST
-} from '@vue/reactivity-transform'
 
-// Utilities
-export { parse as babelParse } from '@babel/parser'
-import MagicString from 'magic-string'
-export { MagicString }
-// technically internal but we want it in @vue/repl, cast it as any to avoid
-// relying on estree types
-import { walk as _walk } from 'estree-walker'
-export const walk = _walk as any
-export {
-  generateCodeFrame,
-  walkIdentifiers,
-  extractIdentifiers,
-  isInDestructureAssignment,
-  isStaticProperty
-} from '@vue/compiler-core'
+// For backwards compat only. Some existing tools like
+// fork-ts-checker-webpack-plugin relies on its presence for differentiating
+// between Vue 2 and Vue 3.
+// ref #12719
+// ref https://github.com/TypeStrong/fork-ts-checker-webpack-plugin/issues/765
+export { parseComponent } from './parseComponent'
 
-// Types
+// types
+export { SFCParseOptions } from './parse'
+export { CompilerOptions, WarningMessage } from 'types/compiler'
+export { TemplateCompiler } from './types'
 export {
-  SFCParseOptions,
-  SFCParseResult,
-  SFCDescriptor,
   SFCBlock,
-  SFCTemplateBlock,
+  SFCCustomBlock,
   SFCScriptBlock,
-  SFCStyleBlock
-} from './parse'
+  SFCDescriptor
+} from './parseComponent'
 export {
-  TemplateCompiler,
   SFCTemplateCompileOptions,
   SFCTemplateCompileResults
 } from './compileTemplate'
-export {
-  SFCStyleCompileOptions,
-  SFCAsyncStyleCompileOptions,
-  SFCStyleCompileResults
-} from './compileStyle'
+export { SFCStyleCompileOptions, SFCStyleCompileResults } from './compileStyle'
 export { SFCScriptCompileOptions } from './compileScript'
-export { AssetURLOptions, AssetURLTagConfig } from './templateTransformAssetUrl'
-export {
-  CompilerOptions,
-  CompilerError,
-  BindingMetadata
-} from '@vue/compiler-core'

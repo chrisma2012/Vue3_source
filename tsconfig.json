@@ -2,14 +2,17 @@
   "compilerOptions": {
     "baseUrl": ".",
     "outDir": "dist",
-    "sourceMap": false,
-    "target": "es2016",
-    "newLine": "LF",
-    "useDefineForClassFields": false,
-    "module": "esnext",
+    "sourceMap": true,
+    "target": "esnext",
+    "module": "ESNext",
     "moduleResolution": "node",
-    "allowJs": false,
+    "newLine": "LF",
     "strict": true,
+
+    "allowJs": true,
+    "noImplicitAny": false,
+    "noImplicitThis": false,
+
     "noUnusedLocals": true,
     "experimentalDecorators": true,
     "resolveJsonModule": true,
@@ -17,19 +20,19 @@
     "removeComments": false,
     "jsx": "preserve",
     "lib": ["esnext", "dom"],
-    "types": ["jest", "puppeteer", "node"],
-    "rootDir": ".",
+    "types": ["node"],
     "paths": {
-      "@vue/compat": ["packages/vue-compat/src"],
-      "@vue/*": ["packages/*/src"],
-      "vue": ["packages/vue/src"]
+      "compiler/*": ["src/compiler/*"],
+      "core/*": ["src/core/*"],
+      "server/*": ["packages/server-renderer/src/*"],
+      "sfc/*": ["packages/compiler-sfc/src/*"],
+      "shared/*": ["src/shared/*"],
+      "web/*": ["src/platforms/web/*"],
+      "v3": ["src/v3/index"],
+      "v3/*": ["src/v3/*"],
+      "types/*": ["src/types/*"],
+      "vue": ["src/platforms/web/entry-runtime-with-compiler"]
     }
   },
-  "include": [
-    "packages/global.d.ts",
-    "packages/*/src",
-    "packages/runtime-dom/types/jsx.d.ts",
-    "packages/*/__tests__",
-    "test-dts"
-  ]
+  "include": ["src", "packages/*/src"]
 }

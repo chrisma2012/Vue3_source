@@ -1,15 +1,8 @@
-import {
-  processExpression,
-  createTransformContext,
-  createSimpleExpression,
-  createRoot,
-  NodeTypes,
-  SimpleExpressionNode,
-  BindingMetadata
-} from '@vue/compiler-dom'
-import { SFCDescriptor } from './parse'
+import { BindingMetadata } from './types'
+import { SFCDescriptor } from './parseComponent'
 import { PluginCreator } from 'postcss'
 import hash from 'hash-sum'
+import { prefixIdentifiers } from './prefixIdentifiers'
 
 export const CSS_VARS_HELPER = `useCssVars`
 
@@ -153,25 +146,13 @@ export function genCssVarsCode(
   isProd: boolean
 ) {
   const varsExp = genCssVarsFromList(vars, id, isProd)
-  const exp = createSimpleExpression(varsExp, false)
-  const context = createTransformContext(createRoot([]), {
-    prefixIdentifiers: true,
-    inline: true,
-    bindingMetadata: bindings.__isScriptSetup === false ? undefined : bindings
-  })
-  const transformed = processExpression(exp, context)
-  const transformedString =
-    transformed.type === NodeTypes.SIMPLE_EXPRESSION
-      ? transformed.content
-      : transformed.children
-          .map(c => {
-            return typeof c === 'string'
-              ? c
-              : (c as SimpleExpressionNode).content
-          })
-          .join('')
-
-  return `_${CSS_VARS_HELPER}(_ctx => (${transformedString}))`
+  return `_${CSS_VARS_HELPER}((_vm, _setup) => ${prefixIdentifiers(
+    `(${varsExp})`,
+    false,
+    false,
+    undefined,
+    bindings
+  )})`
 }
 
 // <script setup> already gets the calls injected as part of the transform

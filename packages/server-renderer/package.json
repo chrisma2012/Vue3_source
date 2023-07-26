@@ -1,41 +1,44 @@
 {
-  "name": "@vue/server-renderer",
-  "version": "3.2.41",
-  "description": "@vue/server-renderer",
+  "name": "vue-server-renderer",
+  "version": "2.7.14",
+  "description": "server renderer for Vue 2.0",
   "main": "index.js",
-  "module": "dist/server-renderer.esm-bundler.js",
-  "types": "dist/server-renderer.d.ts",
-  "files": [
-    "index.js",
-    "dist"
-  ],
-  "buildOptions": {
-    "name": "VueServerRenderer",
-    "formats": [
-      "esm-bundler",
-      "esm-browser",
-      "cjs"
-    ]
-  },
+  "types": "types/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vuejs/core.git",
-    "directory": "packages/server-renderer"
+    "url": "git+https://github.com/vuejs/vue.git"
   },
   "keywords": [
-    "vue"
+    "vue",
+    "server",
+    "ssr"
+  ],
+  "files": [
+    "types/*.d.ts",
+    "*.js",
+    "*.d.ts"
   ],
   "author": "Evan You",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/vuejs/core/issues"
-  },
-  "homepage": "https://github.com/vuejs/core/tree/main/packages/server-renderer#readme",
-  "peerDependencies": {
-    "vue": "3.2.41"
+    "url": "https://github.com/vuejs/vue/issues"
   },
   "dependencies": {
-    "@vue/shared": "3.2.41",
-    "@vue/compiler-ssr": "3.2.41"
-  }
+    "chalk": "^4.1.2",
+    "hash-sum": "^2.0.0",
+    "he": "^1.2.0",
+    "lodash.template": "^4.5.0",
+    "lodash.uniq": "^4.5.0",
+    "resolve": "^1.22.0",
+    "serialize-javascript": "^6.0.0",
+    "source-map": "0.5.6"
+  },
+  "devDependencies": {
+    "@types/webpack": "^4.41.32",
+    "file-loader": "^3.0.1",
+    "memory-fs": "^0.5.0",
+    "vue": "file:../..",
+    "webpack": "^4.46.0"
+  },
+  "homepage": "https://github.com/vuejs/vue/tree/dev/packages/vue-server-renderer#readme"
 }

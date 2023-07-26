@@ -1,7 +1,6 @@
 import merge from 'merge-source-map'
 import { RawSourceMap } from 'source-map'
-import { SFCStyleCompileOptions } from './compileStyle'
-import { isFunction } from '@vue/shared'
+import { isFunction } from 'shared/util'
 
 export type StylePreprocessor = (
   source: string,
@@ -10,8 +9,7 @@ export type StylePreprocessor = (
     [key: string]: any
     additionalData?: string | ((source: string, filename: string) => string)
     filename: string
-  },
-  customRequire: SFCStyleCompileOptions['preprocessCustomRequire']
+  }
 ) => StylePreprocessorResults
 
 export interface StylePreprocessorResults {
@@ -22,8 +20,8 @@ export interface StylePreprocessorResults {
 }
 
 // .scss/.sass processor
-const scss: StylePreprocessor = (source, map, options, load = require) => {
-  const nodeSass = load('sass')
+const scss: StylePreprocessor = (source, map, options) => {
+  const nodeSass = require('sass')
   const finalOptions = {
     ...options,
     data: getSource(source, options.filename, options.additionalData),
@@ -50,20 +48,15 @@ const scss: StylePreprocessor = (source, map, options, load = require) => {
   }
 }
 
-const sass: StylePreprocessor = (source, map, options, load) =>
-  scss(
-    source,
-    map,
-    {
-      ...options,
-      indentedSyntax: true
-    },
-    load
-  )
+const sass: StylePreprocessor = (source, map, options) =>
+  scss(source, map, {
+    ...options,
+    indentedSyntax: true
+  })
 
 // .less
-const less: StylePreprocessor = (source, map, options, load = require) => {
-  const nodeLess = load('less')
+const less: StylePreprocessor = (source, map, options) => {
+  const nodeLess = require('less')
 
   let result: any
   let error: Error | null = null
@@ -95,8 +88,8 @@ const less: StylePreprocessor = (source, map, options, load = require) => {
 }
 
 // .styl
-const styl: StylePreprocessor = (source, map, options, load = require) => {
-  const nodeStylus = load('stylus')
+const styl: StylePreprocessor = (source, map, options) => {
+  const nodeStylus = require('stylus')
   try {
     const ref = nodeStylus(source)
     Object.keys(options).forEach(key => ref.set(key, options[key]))

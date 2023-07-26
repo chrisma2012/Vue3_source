@@ -92,7 +92,11 @@ export function hasDefaultExport(input: string): boolean {
   return defaultExportRE.test(input) || namedDefaultExportRE.test(input)
 }
 
-function specifierEnd(input: string, end: number, nodeEnd: number | null) {
+function specifierEnd(
+  input: string,
+  end: number,
+  nodeEnd: number | undefined | null
+) {
   // export { default   , foo } ...
   let hasCommas = false
   let oldEnd = end
