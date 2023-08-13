@@ -10,8 +10,8 @@ import {
   isObject,
   isString,
   isOn,
-  toNumber,
-  UnionToIntersection
+  UnionToIntersection,
+  looseToNumber
 } from '@vue/shared'
 import {
   ComponentInternalInstance,
@@ -126,7 +126,7 @@ export function emit(
       args = rawArgs.map(a => (isString(a) ? a.trim() : a))
     }
     if (number) {
-      args = rawArgs.map(toNumber)
+      args = rawArgs.map(looseToNumber)
     }
   }
 
@@ -173,7 +173,7 @@ export function emit(
   const onceHandler = props[handlerName + `Once`]
   if (onceHandler) {
     if (!instance.emitted) {
-      instance.emitted = {} as Record<any, boolean>
+      instance.emitted = {}
     } else if (instance.emitted[handlerName]) {
       return
     }

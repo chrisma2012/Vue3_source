@@ -40,6 +40,7 @@ export interface AsyncComponentOptions<T = any> {
 export const isAsyncWrapper = (i: ComponentInternalInstance | VNode): boolean =>
   !!(i.type as ComponentOptions).__asyncLoader
 
+/*! #__NO_SIDE_EFFECTS__ */
 export function defineAsyncComponent<
   T extends Component = { new (): ComponentPublicInstance }
 >(source: AsyncComponentLoader<T> | AsyncComponentOptions<T>): T {
@@ -54,7 +55,7 @@ export function defineAsyncComponent<
     delay = 200,
     timeout, // undefined = never times out
     suspensible = true,
-    onError: userOnError
+    onError: userOnError //onError取别名userOnError
   } = source
 
   let pendingRequest: Promise<ConcreteComponent> | null = null
@@ -72,16 +73,22 @@ export function defineAsyncComponent<
     return (
       pendingRequest ||
       (thisRequest = pendingRequest =
+        // 调用参数中传入的loader函数
         loader()
           .catch(err => {
             err = err instanceof Error ? err : new Error(String(err))
+            // 如果用户配置了出错重试回调函数
             if (userOnError) {
+              // 重新发起加载请求
               return new Promise((resolve, reject) => {
                 const userRetry = () => resolve(retry())
                 const userFail = () => reject(err)
+                //此处retries次数可供用户编写自定义的逻辑，判断请求几次后结束。
+                // userOnError是用户传入的参数（函数），但是该方法的参数由Vue决定如何传入
+                // 调用userOnError，并且为该方法传入以下4个参数供用户使用
                 userOnError(err, userRetry, userFail, retries + 1)
               })
-            } else {
+            } else {//否则直接抛出错误
               throw err
             }
           })
@@ -111,6 +118,7 @@ export function defineAsyncComponent<
     )
   }
 
+  // 返回一个异步组件包裹器
   return defineComponent({
     name: 'AsyncComponentWrapper',
 
@@ -198,11 +206,11 @@ export function defineAsyncComponent<
         if (loaded.value && resolvedComp) {
           return createInnerComp(resolvedComp, instance)
         } else if (error.value && errorComponent) {
-          return createVNode(errorComponent as ConcreteComponent, {
+          return createVNode(errorComponent, {
             error: error.value
           })
         } else if (loadingComponent && !delayed.value) {
-          return createVNode(loadingComponent as ConcreteComponent)
+          return createVNode(loadingComponent)
         }
       }
     }
@@ -211,13 +219,16 @@ export function defineAsyncComponent<
 
 function createInnerComp(
   comp: ConcreteComponent,
-  {
-    vnode: { ref, props, children, shapeFlag },
-    parent
-  }: ComponentInternalInstance
+  parent: ComponentInternalInstance
 ) {
+  const { ref, props, children, ce } = parent.vnode
   const vnode = createVNode(comp, props, children)
   // ensure inner component inherits the async wrapper's ref owner
   vnode.ref = ref
+  // pass the custom element callback on to the inner comp
+  // and remove it from the async wrapper
+  vnode.ce = ce
+  delete parent.vnode.ce
+
   return vnode
 }

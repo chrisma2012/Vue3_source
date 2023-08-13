@@ -1,31 +1,71 @@
+export const version = __VERSION__
+
 // API
-export { parse } from './parse'
+export { parse, parseCache } from './parse'
 export { compileTemplate } from './compileTemplate'
 export { compileStyle, compileStyleAsync } from './compileStyle'
 export { compileScript } from './compileScript'
-export { generateCodeFrame } from 'compiler/codeframe'
-export { rewriteDefault } from './rewriteDefault'
+export { rewriteDefault, rewriteDefaultAST } from './rewriteDefault'
+export { resolveTypeElements, inferRuntimeType } from './script/resolveType'
 
-// For backwards compat only. Some existing tools like
-// fork-ts-checker-webpack-plugin relies on its presence for differentiating
-// between Vue 2 and Vue 3.
-// ref #12719
-// ref https://github.com/TypeStrong/fork-ts-checker-webpack-plugin/issues/765
-export { parseComponent } from './parseComponent'
-
-// types
-export { SFCParseOptions } from './parse'
-export { CompilerOptions, WarningMessage } from 'types/compiler'
-export { TemplateCompiler } from './types'
+// TODO remove in 3.4
 export {
+  shouldTransform as shouldTransformRef,
+  transform as transformRef,
+  transformAST as transformRefAST
+} from '@vue/reactivity-transform'
+
+// Utilities
+export { parse as babelParse } from '@babel/parser'
+import MagicString from 'magic-string'
+export { MagicString }
+// technically internal but we want it in @vue/repl, cast it as any to avoid
+// relying on estree types
+import { walk as _walk } from 'estree-walker'
+export const walk = _walk as any
+export {
+  generateCodeFrame,
+  walkIdentifiers,
+  extractIdentifiers,
+  isInDestructureAssignment,
+  isStaticProperty
+} from '@vue/compiler-core'
+
+// Internals for type resolution
+export { invalidateTypeCache, registerTS } from './script/resolveType'
+
+// Types
+export type {
+  SFCParseOptions,
+  SFCParseResult,
+  SFCDescriptor,
   SFCBlock,
-  SFCCustomBlock,
+  SFCTemplateBlock,
   SFCScriptBlock,
-  SFCDescriptor
-} from './parseComponent'
-export {
+  SFCStyleBlock
+} from './parse'
+export type {
+  TemplateCompiler,
   SFCTemplateCompileOptions,
   SFCTemplateCompileResults
 } from './compileTemplate'
-export { SFCStyleCompileOptions, SFCStyleCompileResults } from './compileStyle'
-export { SFCScriptCompileOptions } from './compileScript'
+export type {
+  SFCStyleCompileOptions,
+  SFCAsyncStyleCompileOptions,
+  SFCStyleCompileResults
+} from './compileStyle'
+export type { SFCScriptCompileOptions } from './compileScript'
+export type { ScriptCompileContext } from './script/context'
+export type {
+  TypeResolveContext,
+  SimpleTypeResolveContext
+} from './script/resolveType'
+export type {
+  AssetURLOptions,
+  AssetURLTagConfig
+} from './template/transformAssetUrl'
+export type {
+  CompilerOptions,
+  CompilerError,
+  BindingMetadata
+} from '@vue/compiler-core'
